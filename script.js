@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Login functionality
     if (loginForm) {
-        loginForm.addEventListener('submit', function(e) {
+        loginForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const username = document.getElementById('username').value;
@@ -26,30 +26,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
-            // Check user credentials
-            const userCredentials = {
-                "Nazish Ekram": "K9#mP$vL2@nQ8",
-                "Sahir Hoda": "X7$hR#jN5&kM9",
-                "Tashfeen Ekram": "B4@wE%tY6!pL3",
-                "Saudah Mirza": "F8#qA$mC7^dK1",
-                "Yasmeen Ekram": "Z2&sI@bV9#gH5",
-                "Jawaid Ekram": "U6!oP%jX4$rT8",
-                "Abdurrahman Hoda": "L3^cW#nE7@yB2",
-                "Abdullah Hoda": "D9$fM&hQ5!kR6",
-                "Afiya Hoda": "G1#tN@vJ8%lS4",
-                "Sahrish Ekram": "H7&aO!bK3^cP9",
-                "Ramim Bhuiya": "I4@eL$fM6#gQ2",
-                "Mariya Ekram": "J8!hN%iR5&kS7"
-            };
-            
-            if (userCredentials[username] && userCredentials[username] === password) {
-                // Store user authentication
-                sessionStorage.setItem('authenticated', 'true');
-                sessionStorage.setItem('userType', 'user');
-                sessionStorage.setItem('currentUser', username);
-                // Redirect to user dashboard
-                window.location.href = 'user-dashboard.html';
-                return;
+            // Check user credentials from backend
+            try {
+                const response = await fetch('/api/users');
+                if (response.ok) {
+                    const userData = await response.json();
+                    
+                    if (userData[username] && userData[username].password === password) {
+                        // Store user authentication
+                        sessionStorage.setItem('authenticated', 'true');
+                        sessionStorage.setItem('userType', 'user');
+                        sessionStorage.setItem('currentUser', username);
+                        // Redirect to user dashboard
+                        window.location.href = 'user-dashboard.html';
+                        return;
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking user credentials:', error);
             }
             
             // Invalid credentials
@@ -849,6 +843,9 @@ async function addNewUser() {
 
     // Generate a random security code
     const securityCode = Math.floor(100 + Math.random() * 900).toString();
+    
+    // Generate a random password (8 characters: letters, numbers, symbols)
+    const password = generateRandomPassword();
 
     // Create the new user object
     const newUser = {
@@ -856,7 +853,8 @@ async function addNewUser() {
         tokens: tokens,
         cardNumber: cardNumber,
         securityCode: securityCode,
-        amountDue: 0
+        amountDue: 0,
+        password: password
     };
 
     try {
@@ -876,7 +874,10 @@ async function addNewUser() {
             // Close modal and refresh dashboard
             closeAddUserModal();
             loadDashboardDataFromBackend();
-            alert('User added successfully!');
+            
+            // Show success message with login credentials
+            const successMessage = `User added successfully!\n\nLogin Credentials:\nUsername: ${name}\nPassword: ${password}\n\nPlease save these credentials!`;
+            alert(successMessage);
         } else {
             alert('Error adding user. Please try again.');
         }
@@ -884,6 +885,16 @@ async function addNewUser() {
         console.error('Error adding user:', error);
         alert('Error adding user. Please try again.');
     }
+}
+
+// Generate random password function
+function generateRandomPassword() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < 8; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
 }
 
 // Close Add User Modal Function
