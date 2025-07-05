@@ -103,21 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadDashboardDataFromBackend();
         
         // Add click functionality to user rows (only when not in edit mode)
-        const userRows = document.querySelectorAll('.user-row');
-        userRows.forEach(row => {
-            row.addEventListener('click', function(e) {
-                // Don't navigate if clicking on editable cells
-                if (e.target.classList.contains('token-amount') || e.target.classList.contains('amount-due')) {
-                    return;
-                }
-                
-                const username = this.getAttribute('data-username');
-                // Store selected user in session storage
-                sessionStorage.setItem('selectedUser', username);
-                // Navigate to amount entry page
-                window.location.href = 'amount.html';
-            });
-        });
+        attachRowClickListeners();
 
         // Add User Modal Event Listeners
         const addUserBtn = document.getElementById('addUserBtn');
@@ -703,8 +689,17 @@ async function loadDashboardDataFromServer() {
 
 // Function to update dashboard with backend data
 function updateDashboardWithBackendData(userData) {
-    const rows = document.querySelectorAll('.user-row');
-    rows.forEach(row => {
+    const tbody = document.querySelector('tbody');
+    const existingRows = document.querySelectorAll('.user-row');
+    
+    // Create a set of existing usernames
+    const existingUsernames = new Set();
+    existingRows.forEach(row => {
+        existingUsernames.add(row.getAttribute('data-username'));
+    });
+    
+    // Update existing rows
+    existingRows.forEach(row => {
         const username = row.getAttribute('data-username');
         const tokenCell = row.querySelector('.token-amount');
         const amountDueCell = row.querySelector('.amount-due');
@@ -727,9 +722,64 @@ function updateDashboardWithBackendData(userData) {
             }
         }
     });
+    
+    // Add new rows for users that don't exist in the table
+    Object.keys(userData).forEach(username => {
+        if (!existingUsernames.has(username)) {
+            const user = userData[username];
+            const newRow = createUserRow(username, user);
+            tbody.appendChild(newRow);
+        }
+    });
 
     // Re-apply tier styling after data update
     applyTierStyling();
+    
+    // Re-attach click event listeners to new rows
+    attachRowClickListeners();
+}
+
+// Function to create a new user row
+function createUserRow(username, user) {
+    const row = document.createElement('tr');
+    row.className = 'user-row';
+    row.setAttribute('data-username', username);
+    
+    row.innerHTML = `
+        <td>${username}</td>
+        <td>${user.tier}</td>
+        <td class="token-amount" contenteditable="false">${user.tokens}</td>
+        <td>${user.cardNumber}</td>
+        <td>${user.securityCode}</td>
+        <td>${user.password || 'N/A'}</td>
+        <td class="amount-due" contenteditable="false">${user.amountDue > 0 ? `$${user.amountDue.toFixed(2)}` : '$0.00'}</td>
+    `;
+    
+    return row;
+}
+
+// Function to attach click event listeners to rows
+function attachRowClickListeners() {
+    const userRows = document.querySelectorAll('.user-row');
+    userRows.forEach(row => {
+        // Remove existing listeners to prevent duplicates
+        row.removeEventListener('click', handleRowClick);
+        row.addEventListener('click', handleRowClick);
+    });
+}
+
+// Function to handle row clicks
+function handleRowClick(e) {
+    // Don't navigate if clicking on editable cells
+    if (e.target.classList.contains('token-amount') || e.target.classList.contains('amount-due')) {
+        return;
+    }
+    
+    const username = this.getAttribute('data-username');
+    // Store selected user in session storage
+    sessionStorage.setItem('selectedUser', username);
+    // Navigate to amount entry page
+    window.location.href = 'amount.html';
 }
 
 // Function to apply tier styling to all rows
