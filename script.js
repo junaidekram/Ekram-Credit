@@ -103,31 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         // Apply tier-based styling to table rows
-        const rows = document.querySelectorAll('tbody tr');
-        
-        rows.forEach(row => {
-            const tierCell = row.querySelector('td:nth-child(2)');
-            if (tierCell) {
-                const tierText = tierCell.textContent.trim();
-                
-                // Add base tier class
-                if (tierText.includes('Gold')) {
-                    row.classList.add('gold-tier');
-                } else if (tierText.includes('Silver')) {
-                    row.classList.add('silver-tier');
-                } else if (tierText.includes('Bronza')) {
-                    row.classList.add('bronze-tier');
-                }
-                
-                // Add special designation classes
-                if (tierText.includes('Priority')) {
-                    row.classList.add('priority');
-                }
-                if (tierText.includes('Honors')) {
-                    row.classList.add('honors');
-                }
-            }
-        });
+        applyTierStyling();
         
         // Load dashboard data from backend
         loadDashboardDataFromBackend();
@@ -148,6 +124,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = 'amount.html';
             });
         });
+
+        // Add User Modal Event Listeners
+        const addUserBtn = document.getElementById('addUserBtn');
+        const addUserModal = document.getElementById('addUserModal');
+        const closeBtn = document.querySelector('.close');
+        const addUserForm = document.getElementById('addUserForm');
+
+        if (addUserBtn) {
+            addUserBtn.addEventListener('click', function() {
+                addUserModal.style.display = 'block';
+            });
+        }
+
+        if (closeBtn) {
+            closeBtn.addEventListener('click', function() {
+                addUserModal.style.display = 'none';
+            });
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target === addUserModal) {
+                addUserModal.style.display = 'none';
+            }
+        });
+
+        // Handle form submission
+        if (addUserForm) {
+            addUserForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                addNewUser();
+            });
+        }
     }
     
     // User Dashboard functionality
@@ -724,6 +733,47 @@ function updateDashboardWithBackendData(userData) {
             }
         }
     });
+
+    // Re-apply tier styling after data update
+    applyTierStyling();
+}
+
+// Function to apply tier styling to all rows
+function applyTierStyling() {
+    const rows = document.querySelectorAll('tbody tr');
+    
+    rows.forEach(row => {
+        const tierCell = row.querySelector('td:nth-child(2)');
+        if (tierCell) {
+            const tierText = tierCell.textContent.trim();
+            
+            // Remove existing tier classes
+            row.classList.remove('gold-tier', 'silver-tier', 'bronze-tier', 'normal-tier', 'sapphire-tier', 'obsidian-tier', 'priority', 'honors');
+            
+            // Add base tier class
+            if (tierText.includes('Gold')) {
+                row.classList.add('gold-tier');
+            } else if (tierText.includes('Silver')) {
+                row.classList.add('silver-tier');
+            } else if (tierText.includes('Bronza')) {
+                row.classList.add('bronze-tier');
+            } else if (tierText.includes('Normal')) {
+                row.classList.add('normal-tier');
+            } else if (tierText.includes('Sapphire')) {
+                row.classList.add('sapphire-tier');
+            } else if (tierText.includes('Obsidian')) {
+                row.classList.add('obsidian-tier');
+            }
+            
+            // Add special designation classes
+            if (tierText.includes('Priority')) {
+                row.classList.add('priority');
+            }
+            if (tierText.includes('Honors')) {
+                row.classList.add('honors');
+            }
+        }
+    });
 }
 
 // Function to update dashboard with server data (legacy)
@@ -782,4 +832,66 @@ function updateDashboardDisplay(username, newTokens, newAmountDue) {
 // Global function for cancel button
 function goBack() {
     window.location.href = 'dashboard.html';
+}
+
+// Add New User Function
+async function addNewUser() {
+    const name = document.getElementById('newUserName').value.trim();
+    const cardNumber = document.getElementById('newUserCardNumber').value.trim();
+    const tier = document.getElementById('newUserTier').value;
+    const designation = document.getElementById('newUserDesignation').value;
+    const tokens = parseInt(document.getElementById('newUserTokens').value);
+
+    if (!name || !cardNumber || !tier) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
+    // Generate a random security code
+    const securityCode = Math.floor(100 + Math.random() * 900).toString();
+
+    // Create the new user object
+    const newUser = {
+        tier: designation ? `${tier} ${designation}` : tier,
+        tokens: tokens,
+        cardNumber: cardNumber,
+        securityCode: securityCode,
+        amountDue: 0
+    };
+
+    try {
+        // Add to backend
+        const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: name,
+                userData: newUser
+            })
+        });
+
+        if (response.ok) {
+            // Close modal and refresh dashboard
+            closeAddUserModal();
+            loadDashboardDataFromBackend();
+            alert('User added successfully!');
+        } else {
+            alert('Error adding user. Please try again.');
+        }
+    } catch (error) {
+        console.error('Error adding user:', error);
+        alert('Error adding user. Please try again.');
+    }
+}
+
+// Close Add User Modal Function
+function closeAddUserModal() {
+    const modal = document.getElementById('addUserModal');
+    if (modal) {
+        modal.style.display = 'none';
+        // Reset form
+        document.getElementById('addUserForm').reset();
+    }
 }

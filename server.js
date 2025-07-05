@@ -181,6 +181,38 @@ app.put('/api/users/:username', async (req, res) => {
     }
 });
 
+// POST new user
+app.post('/api/users', async (req, res) => {
+    try {
+        const { name, userData } = req.body;
+        
+        if (!name || !userData) {
+            return res.status(400).json({ error: 'Name and user data are required' });
+        }
+        
+        const data = JSON.parse(await fs.readFile(dataPath, 'utf8'));
+        
+        // Check if user already exists
+        if (data[name]) {
+            return res.status(409).json({ error: 'User already exists' });
+        }
+        
+        // Add new user
+        data[name] = userData;
+        
+        await fs.writeFile(dataPath, JSON.stringify(data, null, 2));
+        
+        res.status(201).json({
+            success: true,
+            user: data[name],
+            message: 'User created successfully'
+        });
+    } catch (error) {
+        console.error('Error creating user:', error);
+        res.status(500).json({ error: 'Failed to create user' });
+    }
+});
+
 // POST new transaction
 app.post('/api/transactions', async (req, res) => {
     try {
