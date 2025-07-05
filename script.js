@@ -129,8 +129,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
-        // Initialize dashboard data from HTML table
-        initializeDashboardData();
+        // Load dashboard data from backend
+        loadDashboardDataFromBackend();
         
         // Add click functionality to user rows (only when not in edit mode)
         const userRows = document.querySelectorAll('.user-row');
@@ -164,8 +164,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Load user data
-        loadUserDashboard();
+        // Load user data from backend
+        loadUserDashboardFromBackend();
         
         // User logout functionality
         const userLogoutBtn = document.getElementById('userLogoutBtn');
@@ -226,7 +226,29 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Function to load user dashboard data
+// Function to load user dashboard data from backend
+async function loadUserDashboardFromBackend() {
+    const currentUser = sessionStorage.getItem('currentUser');
+    const welcomeMessage = document.getElementById('welcomeMessage');
+    
+    if (welcomeMessage) {
+        welcomeMessage.textContent = `Welcome, ${currentUser}`;
+    }
+    
+    try {
+        const response = await fetch(`/api/users/${encodeURIComponent(currentUser)}`);
+        if (response.ok) {
+            const userData = await response.json();
+            updateUserDashboardDisplay(userData);
+        } else {
+            console.error('Failed to load user data from backend');
+        }
+    } catch (error) {
+        console.error('Error loading user data:', error);
+    }
+}
+
+// Function to load user dashboard data (legacy)
 function loadUserDashboard() {
     const currentUser = sessionStorage.getItem('currentUser');
     const welcomeMessage = document.getElementById('welcomeMessage');
@@ -474,52 +496,59 @@ function initializeDashboardData() {
 }
 
 // Function to process token conversion (background processing)
-function processTokenConversion(dollarAmount, selectedUser) {
+async function processTokenConversion(dollarAmount, selectedUser) {
     const tokensNeeded = Math.ceil(dollarAmount * 100); // 1 token per cent
     
-    // Get current user data
-    const userAmounts = JSON.parse(sessionStorage.getItem('userAmounts') || '{}');
-    const userTokens = JSON.parse(sessionStorage.getItem('userTokens') || '{}');
-    
-    // Get user's current token balance from the dashboard data
-    const dashboardData = JSON.parse(sessionStorage.getItem('dashboardData') || '{}');
-    const currentTokens = dashboardData[selectedUser] ? dashboardData[selectedUser].tokens : 5000; // Default fallback
-    
-    let remainingAmount = 0;
-    let tokensUsed = 0;
-    
-    if (tokensNeeded <= currentTokens) {
-        // User has enough tokens
-        tokensUsed = tokensNeeded;
-        remainingAmount = 0;
-    } else {
-        // User doesn't have enough tokens
-        tokensUsed = currentTokens;
-        remainingAmount = dollarAmount - (currentTokens / 100);
+    try {
+        // Get current user data from backend
+        const response = await fetch(`/api/users/${encodeURIComponent(selectedUser)}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch user data');
+        }
+        
+        const userData = await response.json();
+        const currentTokens = userData.tokens || 0;
+        
+        let remainingAmount = 0;
+        let tokensUsed = 0;
+        
+        if (tokensNeeded <= currentTokens) {
+            // User has enough tokens
+            tokensUsed = tokensNeeded;
+            remainingAmount = 0;
+        } else {
+            // User doesn't have enough tokens
+            tokensUsed = currentTokens;
+            remainingAmount = dollarAmount - (currentTokens / 100);
+        }
+        
+        // Update user data via backend API
+        const updateResponse = await fetch(`/api/users/${encodeURIComponent(selectedUser)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tokens: Math.max(0, currentTokens - tokensUsed),
+                amountDue: (userData.amountDue || 0) + remainingAmount
+            })
+        });
+        
+        if (!updateResponse.ok) {
+            throw new Error('Failed to update user data');
+        }
+        
+        // Update the dashboard display immediately
+        updateDashboardDisplay(selectedUser, Math.max(0, currentTokens - tokensUsed), (userData.amountDue || 0) + remainingAmount);
+        
+        return {
+            tokensUsed: tokensUsed,
+            remainingAmount: remainingAmount
+        };
+    } catch (error) {
+        console.error('Error processing transaction:', error);
+        throw error;
     }
-    
-    // Update user data
-    userAmounts[selectedUser] = (userAmounts[selectedUser] || 0) + remainingAmount;
-    userTokens[selectedUser] = (userTokens[selectedUser] || currentTokens) - tokensUsed;
-    
-    // Update dashboard data
-    dashboardData[selectedUser] = {
-        tokens: Math.max(0, currentTokens - tokensUsed),
-        amountDue: userAmounts[selectedUser]
-    };
-    
-    // Store updated data
-    sessionStorage.setItem('userAmounts', JSON.stringify(userAmounts));
-    sessionStorage.setItem('userTokens', JSON.stringify(userTokens));
-    sessionStorage.setItem('dashboardData', JSON.stringify(dashboardData));
-    
-    // Update the dashboard display immediately
-    updateDashboardDisplay(selectedUser, Math.max(0, currentTokens - tokensUsed), userAmounts[selectedUser]);
-    
-    return {
-        tokensUsed: tokensUsed,
-        remainingAmount: remainingAmount
-    };
 }
 
 // Function to enable edit mode
@@ -529,12 +558,14 @@ function enableEditMode() {
     
     tokenCells.forEach(cell => {
         cell.contentEditable = true;
+        cell.setAttribute('data-original', cell.textContent);
         cell.addEventListener('blur', handleTokenEdit);
         cell.addEventListener('keydown', handleKeyDown);
     });
     
     amountDueCells.forEach(cell => {
         cell.contentEditable = true;
+        cell.setAttribute('data-original', cell.textContent);
         cell.addEventListener('blur', handleAmountDueEdit);
         cell.addEventListener('keydown', handleKeyDown);
     });
@@ -559,52 +590,73 @@ function disableEditMode() {
 }
 
 // Handle token cell editing
-function handleTokenEdit(e) {
+async function handleTokenEdit(e) {
     const cell = e.target;
     const username = cell.closest('tr').getAttribute('data-username');
     const newValue = parseInt(cell.textContent) || 0;
     
-    // Update stored data
-    const userTokens = JSON.parse(sessionStorage.getItem('userTokens') || '{}');
-    const dashboardData = JSON.parse(sessionStorage.getItem('dashboardData') || '{}');
-    
-    userTokens[username] = Math.max(0, newValue);
-    if (!dashboardData[username]) dashboardData[username] = {};
-    dashboardData[username].tokens = userTokens[username];
-    
-    sessionStorage.setItem('userTokens', JSON.stringify(userTokens));
-    sessionStorage.setItem('dashboardData', JSON.stringify(dashboardData));
-    
-    // Update display
-    cell.textContent = userTokens[username];
+    try {
+        // Update via backend API
+        const response = await fetch(`/api/users/${encodeURIComponent(username)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tokens: Math.max(0, newValue)
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update user data');
+        }
+        
+        // Update display
+        cell.textContent = Math.max(0, newValue);
+    } catch (error) {
+        console.error('Error updating token:', error);
+        // Revert the cell content on error
+        cell.textContent = cell.getAttribute('data-original') || '0';
+    }
 }
 
 // Handle amount due cell editing
-function handleAmountDueEdit(e) {
+async function handleAmountDueEdit(e) {
     const cell = e.target;
     const username = cell.closest('tr').getAttribute('data-username');
     const newValue = parseFloat(cell.textContent.replace('$', '')) || 0;
     
-    // Update stored data
-    const userAmounts = JSON.parse(sessionStorage.getItem('userAmounts') || '{}');
-    const dashboardData = JSON.parse(sessionStorage.getItem('dashboardData') || '{}');
-    
-    userAmounts[username] = Math.max(0, newValue);
-    if (!dashboardData[username]) dashboardData[username] = {};
-    dashboardData[username].amountDue = userAmounts[username];
-    
-    sessionStorage.setItem('userAmounts', JSON.stringify(userAmounts));
-    sessionStorage.setItem('dashboardData', JSON.stringify(dashboardData));
-    
-    // Update display
-    if (newValue > 0) {
-        cell.textContent = `$${newValue.toFixed(2)}`;
-        cell.style.color = '#e74c3c';
-        cell.style.fontWeight = 'bold';
-    } else {
-        cell.textContent = '$0.00';
-        cell.style.color = '#27ae60';
-        cell.style.fontWeight = 'normal';
+    try {
+        // Update via backend API
+        const response = await fetch(`/api/users/${encodeURIComponent(username)}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                amountDue: Math.max(0, newValue)
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update user data');
+        }
+        
+        // Update display
+        if (newValue > 0) {
+            cell.textContent = `$${newValue.toFixed(2)}`;
+            cell.classList.add('has-amount');
+            cell.classList.remove('no-amount');
+        } else {
+            cell.textContent = '$0.00';
+            cell.classList.add('no-amount');
+            cell.classList.remove('has-amount');
+        }
+    } catch (error) {
+        console.error('Error updating amount due:', error);
+        // Revert the cell content on error
+        const originalValue = cell.getAttribute('data-original') || '$0.00';
+        cell.textContent = originalValue;
     }
 }
 
@@ -616,7 +668,22 @@ function handleKeyDown(e) {
     }
 }
 
-// Function to load dashboard data from server
+// Function to load dashboard data from backend
+async function loadDashboardDataFromBackend() {
+    try {
+        const response = await fetch('/api/users');
+        if (response.ok) {
+            const userData = await response.json();
+            updateDashboardWithBackendData(userData);
+        } else {
+            console.error('Failed to load dashboard data from backend');
+        }
+    } catch (error) {
+        console.error('Error loading dashboard data:', error);
+    }
+}
+
+// Function to load dashboard data from server (legacy)
 async function loadDashboardDataFromServer() {
     try {
         const response = await fetch('http://localhost:5001/api/users');
@@ -631,7 +698,35 @@ async function loadDashboardDataFromServer() {
     }
 }
 
-// Function to update dashboard with server data
+// Function to update dashboard with backend data
+function updateDashboardWithBackendData(userData) {
+    const rows = document.querySelectorAll('.user-row');
+    rows.forEach(row => {
+        const username = row.getAttribute('data-username');
+        const tokenCell = row.querySelector('.token-amount');
+        const amountDueCell = row.querySelector('.amount-due');
+        
+        if (tokenCell && amountDueCell && userData[username]) {
+            const user = userData[username];
+            
+            // Update tokens
+            tokenCell.textContent = user.tokens;
+            
+            // Update amount due
+            if (user.amountDue > 0) {
+                amountDueCell.textContent = `$${user.amountDue.toFixed(2)}`;
+                amountDueCell.classList.add('has-amount');
+                amountDueCell.classList.remove('no-amount');
+            } else {
+                amountDueCell.textContent = '$0.00';
+                amountDueCell.classList.add('no-amount');
+                amountDueCell.classList.remove('has-amount');
+            }
+        }
+    });
+}
+
+// Function to update dashboard with server data (legacy)
 function updateDashboardWithServerData(userData) {
     const rows = document.querySelectorAll('.user-row');
     rows.forEach(row => {
