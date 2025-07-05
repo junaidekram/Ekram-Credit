@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ekram Credit - Enter Amount</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="amount-container">
+        <header class="amount-header">
+            <h2>Enter Amount</h2>
+            <div class="user-info">
+                <span id="selectedUser">User: </span>
+            </div>
+        </header>
+        
+        <main class="amount-content">
+            <div class="amount-box">
+                <form id="amountForm">
+                                    <div class="input-group">
+                    <label for="amount">Amount:</label>
+                    <div class="amount-input-wrapper">
+                        <span class="currency-symbol">$</span>
+                        <input type="number" id="amount" name="amount" step="0.01" min="0" placeholder="0.00" required>
+                    </div>
+                </div>
+                    <div class="button-group">
+                        <button type="submit" class="submit-btn">Submit Amount</button>
+                        <button type="button" class="cancel-btn" onclick="goBack()">Cancel</button>
+                    </div>
+                </form>
+                <div id="amount-message" class="amount-message"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Transaction Flow Screens -->
+    <div id="transactionFlow" class="transaction-flow" style="display: none;">
+        <!-- Enter Credit Card Screen -->
+        <div id="enterCardScreen" class="transaction-screen">
+            <div class="transaction-content">
+                <div class="card-icon">💳</div>
+                <h2>Enter Credit Card</h2>
+                <p>Please insert or swipe your credit card</p>
+                <div class="loading-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Processing Screen -->
+        <div id="processingScreen" class="transaction-screen" style="display: none;">
+            <div class="transaction-content">
+                <div class="processing-icon">⚙️</div>
+                <h2>Processing</h2>
+                <p>Do not remove card</p>
+                <div class="processing-spinner"></div>
+            </div>
+        </div>
+
+        <!-- Remove Card Screen -->
+        <div id="removeCardScreen" class="transaction-screen" style="display: none;">
+            <div class="transaction-content">
+                <div class="remove-icon">✅</div>
+                <h2>Remove Credit Card</h2>
+                <p>Transaction processing complete</p>
+                <div class="checkmark">✓</div>
+            </div>
+        </div>
+
+        <!-- Transaction Complete Screen -->
+        <div id="completeScreen" class="transaction-screen" style="display: none;">
+            <div class="transaction-content">
+                <div class="success-icon">🎉</div>
+                <h2>Transaction Complete</h2>
+                <p>Thank You!</p>
+                <div class="success-message">
+                    <p>Your transaction has been processed successfully</p>
+                    <p id="transactionSummary"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html> 
