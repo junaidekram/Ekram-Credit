@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Dashboard - Ekram Credit</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 id="welcomeMessage">User Dashboard</h1>
+            <button id="userLogoutBtn" class="logout-btn">Logout</button>
+        </header>
+        
+        <main class="user-dashboard-content">
+            <div class="user-info-card">
+                <div class="info-section">
+                    <h2>Account Information</h2>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <label>Credit Card Number:</label>
+                            <span id="userCardNumber" class="card-number">Loading...</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Security Code:</label>
+                            <span id="userSecurityCode" class="security-code">Loading...</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Tokens:</label>
+                            <span id="userTokens" class="tokens">Loading...</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Amount Due:</label>
+                            <span id="userAmountDue" class="amount-due">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html> 

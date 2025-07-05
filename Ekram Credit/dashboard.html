@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ekram Credit - Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="dashboard-container">
+        <header class="dashboard-header">
+            <h1>Ekram Credit</h1>
+            <div class="header-controls">
+                <button id="editModeBtn" class="edit-btn">Edit Mode</button>
+                <button id="logoutBtn" class="logout-btn">Logout</button>
+            </div>
+        </header>
+        
+        <main class="dashboard-content">
+            <div class="edit-notice" id="editNotice" style="display: none;">
+                <p>📝 Edit Mode Active - Click on Token or Amount Due cells to edit values</p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>User Name</th>
+                        <th>Tier</th>
+                        <th>Tokens</th>
+                        <th>Card Number</th>
+                        <th>Security Code</th>
+                        <th>Password</th>
+                        <th>Amount Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="user-row" data-username="Nazish Ekram">
+                        <td>Nazish Ekram</td>
+                        <td>Gold</td>
+                        <td class="token-amount" contenteditable="false">5000</td>
+                        <td>1100-3451-6671-2293</td>
+                        <td>847</td>
+                        <td>K9#mP$vL2@nQ8</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Sahir Hoda">
+                        <td>Sahir Hoda</td>
+                        <td>Gold</td>
+                        <td class="token-amount" contenteditable="false">5000</td>
+                        <td>4410-6700-1120-2244</td>
+                        <td>392</td>
+                        <td>X7$hR#jN5&kM9</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Tashfeen Ekram">
+                        <td>Tashfeen Ekram</td>
+                        <td>Gold Honors</td>
+                        <td class="token-amount" contenteditable="false">7500</td>
+                        <td>7244-1122-4321-6767</td>
+                        <td>156</td>
+                        <td>B4@wE%tY6!pL3</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Saudah Mirza">
+                        <td>Saudah Mirza</td>
+                        <td>Gold Honors</td>
+                        <td class="token-amount" contenteditable="false">7500</td>
+                        <td>4422-3199-2949-7777</td>
+                        <td>734</td>
+                        <td>F8#qA$mC7^dK1</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Yasmeen Ekram">
+                        <td>Yasmeen Ekram</td>
+                        <td>Gold Priority</td>
+                        <td class="token-amount" contenteditable="false">5000</td>
+                        <td>2241-8284-7211-2170</td>
+                        <td>581</td>
+                        <td>Z2&sI@bV9#gH5</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Jawaid Ekram">
+                        <td>Jawaid Ekram</td>
+                        <td>Gold Priority</td>
+                        <td class="token-amount" contenteditable="false">5000</td>
+                        <td>7111-8112-1212-7482</td>
+                        <td>267</td>
+                        <td>U6!oP%jX4$rT8</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Abdurrahman Hoda">
+                        <td>Abdurrahman Hoda</td>
+                        <td>Silver Honors</td>
+                        <td class="token-amount" contenteditable="false">3000</td>
+                        <td>6757-7767-1677-2267</td>
+                        <td>943</td>
+                        <td>L3^cW#nE7@yB2</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Abdullah Hoda">
+                        <td>Abdullah Hoda</td>
+                        <td>Silver</td>
+                        <td class="token-amount" contenteditable="false">2500</td>
+                        <td>8494-3783-4224-6142</td>
+                        <td>425</td>
+                        <td>D9$fM&hQ5!kR6</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Afiya Hoda">
+                        <td>Afiya Hoda</td>
+                        <td>Silver</td>
+                        <td class="token-amount" contenteditable="false">2500</td>
+                        <td>9491-9611-0102-4300</td>
+                        <td>678</td>
+                        <td>G1#tN@vJ8%lS4</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Sahrish Ekram">
+                        <td>Sahrish Ekram</td>
+                        <td>Gold</td>
+                        <td class="token-amount" contenteditable="false">5000</td>
+                        <td>0780-2949-0771-6789</td>
+                        <td>319</td>
+                        <td>H7&aO!bK3^cP9</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Ramim Bhuiya">
+                        <td>Ramim Bhuiya</td>
+                        <td>Gold</td>
+                        <td class="token-amount" contenteditable="false">5000</td>
+                        <td>1111-2359-0070-7579</td>
+                        <td>852</td>
+                        <td>I4@eL$fM6#gQ2</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                    <tr class="user-row" data-username="Mariya Ekram">
+                        <td>Mariya Ekram</td>
+                        <td>Bronza Priority</td>
+                        <td class="token-amount" contenteditable="false">1000</td>
+                        <td>6422-5510-6218-1285</td>
+                        <td>147</td>
+                        <td>J8!hN%iR5&kS7</td>
+                        <td class="amount-due" contenteditable="false">$0.00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </main>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html> 
