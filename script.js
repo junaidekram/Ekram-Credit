@@ -362,7 +362,21 @@ function updateUserDashboardDisplay(user) {
     const securityCodeElement = document.getElementById('userSecurityCode');
     const amountDueElement = document.getElementById('userAmountDue');
     
-    if (tierElement) tierElement.textContent = user.tier;
+    if (tierElement) {
+        tierElement.textContent = user.tier;
+        // Remove previous tier classes
+        tierElement.className = 'user-tier';
+        // Add color class based on tier
+        if (user.tier) {
+            const tierLower = user.tier.toLowerCase();
+            if (tierLower.includes('gold')) tierElement.classList.add('gold');
+            else if (tierLower.includes('silver')) tierElement.classList.add('silver');
+            else if (tierLower.includes('bronze')) tierElement.classList.add('bronze');
+            else if (tierLower.includes('normal')) tierElement.classList.add('normal');
+            else if (tierLower.includes('sapphire')) tierElement.classList.add('sapphire');
+            else if (tierLower.includes('obsidian')) tierElement.classList.add('obsidian');
+        }
+    }
     if (tokensElement) tokensElement.textContent = user.tokens;
     if (cardNumberElement) cardNumberElement.textContent = user.cardNumber;
     if (securityCodeElement) securityCodeElement.textContent = user.securityCode;
