@@ -14,13 +14,18 @@ app.use(bodyParser.json());
 // Serve static files (your frontend)
 app.use(express.static(path.join(__dirname)));
 
-// Data file path
-const dataPath = path.join(__dirname, 'data', 'users.json');
+// Data file path - use persistent storage
+const dataPath = process.env.NODE_ENV === 'production' 
+    ? '/tmp/data/users.json'  // Render persistent storage
+    : path.join(__dirname, 'data', 'users.json');
 
 // Ensure data directory exists
 async function ensureDataDirectory() {
     try {
-        await fs.mkdir(path.join(__dirname, 'data'), { recursive: true });
+        const dataDir = process.env.NODE_ENV === 'production' 
+            ? '/tmp/data' 
+            : path.join(__dirname, 'data');
+        await fs.mkdir(dataDir, { recursive: true });
     } catch (error) {
         console.log('Data directory already exists');
     }

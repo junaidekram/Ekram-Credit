@@ -87,6 +87,18 @@ Ensure your GitHub repository contains:
    - Render will automatically deploy your app
    - You'll get a URL like: `https://ekram-credit-app.onrender.com`
 
+### Step 3: Set Persistent Storage
+
+1. **Go to your Render service dashboard**
+2. **Click on "Environment" tab**
+3. **Add a new environment variable**:
+   - **Key**: `PERSISTENT_STORAGE_PATH`
+   - **Value**: `/tmp/data`
+4. **Deploy**
+   - Click "Create Web Service"
+   - Render will automatically deploy your app
+   - You'll get a URL like: `https://ekram-credit-app.onrender.com`
+
 ## User Management
 
 ### Default Users
