@@ -13,13 +13,14 @@ let db;
 
 // MongoDB connection options
 const mongoOptions = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     serverSelectionTimeoutMS: 10000,
     socketTimeoutMS: 45000,
     maxPoolSize: 10,
     retryWrites: true,
-    w: 'majority'
+    w: 'majority',
+    tls: true,
+    tlsAllowInvalidCertificates: true,
+    tlsAllowInvalidHostnames: true
 };
 
 // Middleware
@@ -351,9 +352,37 @@ async function startServer() {
             return;
         }
         
-        const client = new MongoClient(MONGODB_URI, mongoOptions);
-        await client.connect();
-        console.log('Connected to MongoDB successfully');
+        // Try different connection approaches
+        let client;
+        
+        // First attempt: with TLS options
+        try {
+            client = new MongoClient(MONGODB_URI, mongoOptions);
+            await client.connect();
+            console.log('Connected to MongoDB successfully with TLS options');
+        } catch (error) {
+            console.log('First connection attempt failed, trying without TLS options...');
+            
+            // Second attempt: without TLS options
+            try {
+                client = new MongoClient(MONGODB_URI, {
+                    serverSelectionTimeoutMS: 10000,
+                    socketTimeoutMS: 45000,
+                    maxPoolSize: 10,
+                    retryWrites: true,
+                    w: 'majority'
+                });
+                await client.connect();
+                console.log('Connected to MongoDB successfully without TLS options');
+            } catch (secondError) {
+                console.log('Second connection attempt failed, trying minimal options...');
+                
+                // Third attempt: minimal options
+                client = new MongoClient(MONGODB_URI);
+                await client.connect();
+                console.log('Connected to MongoDB successfully with minimal options');
+            }
+        }
         
         db = client.db();
         await initializeDatabase();
@@ -364,7 +393,7 @@ async function startServer() {
             console.log(`API docs: http://localhost:${PORT}/api/users`);
         });
     } catch (error) {
-        console.error('Failed to connect to MongoDB:', error.message);
+        console.error('All MongoDB connection attempts failed:', error.message);
         console.log('Falling back to file-based storage...');
         await startWithFileStorage();
     }
