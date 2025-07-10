@@ -10,12 +10,13 @@ A comprehensive credit management web application with user authentication, toke
 - **Transaction Flow**: Multi-step credit card processing simulation
 - **Tier-based System**: Gold, Silver, Bronze tiers with Priority and Honors designations
 - **Responsive Design**: Works on desktop and mobile devices
+- **Persistent Data**: MongoDB Atlas cloud database for data persistence
 
 ## Tech Stack
 
 - **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
 - **Backend**: Node.js, Express.js
-- **Database**: JSON file storage (can be upgraded to MongoDB/PostgreSQL)
+- **Database**: MongoDB Atlas (cloud database)
 - **Deployment**: Render (free tier)
 
 ## Local Development
@@ -23,6 +24,24 @@ A comprehensive credit management web application with user authentication, toke
 ### Prerequisites
 - Node.js (version 14 or higher)
 - npm or yarn
+- MongoDB Atlas account (free)
+
+### MongoDB Atlas Setup
+
+1. **Create MongoDB Atlas Account**
+   - Go to [mongodb.com/atlas](https://mongodb.com/atlas)
+   - Sign up for a free account
+   - Create a new cluster (free tier)
+
+2. **Set Up Database**
+   - Click "Connect" on your cluster
+   - Choose "Connect your application"
+   - Copy the connection string
+   - Replace `<password>` with your database password
+   - Replace `<dbname>` with `ekram-credit`
+
+3. **Get Your Connection String**
+   - It should look like: `mongodb+srv://username:password@cluster.mongodb.net/ekram-credit?retryWrites=true&w=majority`
 
 ### Installation
 
@@ -37,12 +56,19 @@ A comprehensive credit management web application with user authentication, toke
    npm install
    ```
 
-3. **Start the development server**
+3. **Set up environment variables**
+   - Create a `.env` file in the root directory
+   - Add your MongoDB connection string:
+   ```
+   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ekram-credit?retryWrites=true&w=majority
+   ```
+
+4. **Start the development server**
    ```bash
    npm run dev
    ```
 
-4. **Open your browser**
+5. **Open your browser**
    Navigate to `http://localhost:3000`
 
 ## API Endpoints
@@ -54,6 +80,7 @@ A comprehensive credit management web application with user authentication, toke
 - `GET /api/users` - Get all users
 - `GET /api/users/:username` - Get specific user
 - `PUT /api/users/:username` - Update user data
+- `POST /api/users` - Create new user
 
 ### Transactions
 - `POST /api/transactions` - Process new transaction
@@ -82,19 +109,13 @@ Ensure your GitHub repository contains:
    - **Start Command**: `npm start`
    - **Plan**: Free
 
-6. **Deploy**
-   - Click "Create Web Service"
-   - Render will automatically deploy your app
-   - You'll get a URL like: `https://ekram-credit-app.onrender.com`
+6. **Set Environment Variables**
+   - Go to the "Environment" tab
+   - Add your MongoDB connection string:
+     - **Key**: `MONGODB_URI`
+     - **Value**: Your MongoDB Atlas connection string
 
-### Step 3: Set Persistent Storage
-
-1. **Go to your Render service dashboard**
-2. **Click on "Environment" tab**
-3. **Add a new environment variable**:
-   - **Key**: `PERSISTENT_STORAGE_PATH`
-   - **Value**: `/tmp/data`
-4. **Deploy**
+7. **Deploy**
    - Click "Create Web Service"
    - Render will automatically deploy your app
    - You'll get a URL like: `https://ekram-credit-app.onrender.com`
@@ -140,11 +161,16 @@ Ekram-Credit/
 ├── user-dashboard.html   # User dashboard
 ├── amount.html           # Amount entry page
 ├── script.js             # Frontend JavaScript
-├── style.css             # Styling
-├── user_data.json        # User data (legacy)
-└── data/                 # Backend data storage
-    └── users.json        # User data (active)
+└── style.css             # Styling
 ```
+
+## Data Persistence
+
+The application now uses MongoDB Atlas for persistent data storage. This means:
+- Data survives server restarts
+- Data persists through Render's sleep/wake cycles
+- No data loss when the server goes inactive
+- Real-time synchronization across all users
 
 ## Support
 

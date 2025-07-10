@@ -1,11 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const fs = require('fs').promises;
+const { MongoClient } = require('mongodb');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// MongoDB connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ekram-credit';
+let db;
 
 // Middleware
 app.use(cors());
@@ -13,23 +17,6 @@ app.use(bodyParser.json());
 
 // Serve static files (your frontend)
 app.use(express.static(path.join(__dirname)));
-
-// Data file path - use persistent storage
-const dataPath = process.env.NODE_ENV === 'production' 
-    ? '/tmp/data/users.json'  // Render persistent storage
-    : path.join(__dirname, 'data', 'users.json');
-
-// Ensure data directory exists
-async function ensureDataDirectory() {
-    try {
-        const dataDir = process.env.NODE_ENV === 'production' 
-            ? '/tmp/data' 
-            : path.join(__dirname, 'data');
-        await fs.mkdir(dataDir, { recursive: true });
-    } catch (error) {
-        console.log('Data directory already exists');
-    }
-}
 
 // Initialize default user data
 const defaultUsers = {
@@ -131,14 +118,25 @@ const defaultUsers = {
     }
 };
 
-// Initialize data file if it doesn't exist
-async function initializeData() {
+// Initialize database with default users
+async function initializeDatabase() {
     try {
-        await fs.access(dataPath);
-        console.log('Data file exists');
+        const collection = db.collection('users');
+        const count = await collection.countDocuments();
+        
+        if (count === 0) {
+            console.log('Initializing database with default users');
+            const usersArray = Object.entries(defaultUsers).map(([name, data]) => ({
+                name,
+                ...data
+            }));
+            await collection.insertMany(usersArray);
+            console.log('Default users added to database');
+        } else {
+            console.log('Database already has users');
+        }
     } catch (error) {
-        console.log('Creating data file with default users');
-        await fs.writeFile(dataPath, JSON.stringify(defaultUsers, null, 2));
+        console.error('Error initializing database:', error);
     }
 }
 
@@ -147,8 +145,17 @@ async function initializeData() {
 // GET all users
 app.get('/api/users', async (req, res) => {
     try {
-        const data = await fs.readFile(dataPath, 'utf8');
-        res.json(JSON.parse(data));
+        const collection = db.collection('users');
+        const users = await collection.find({}).toArray();
+        
+        // Convert back to the expected format
+        const usersObject = {};
+        users.forEach(user => {
+            const { name, ...userData } = user;
+            usersObject[name] = userData;
+        });
+        
+        res.json(usersObject);
     } catch (error) {
         console.error('Error reading users:', error);
         res.status(500).json({ error: 'Failed to load users' });
@@ -159,10 +166,12 @@ app.get('/api/users', async (req, res) => {
 app.get('/api/users/:username', async (req, res) => {
     try {
         const { username } = req.params;
-        const data = JSON.parse(await fs.readFile(dataPath, 'utf8'));
+        const collection = db.collection('users');
+        const user = await collection.findOne({ name: username });
         
-        if (data[username]) {
-            res.json(data[username]);
+        if (user) {
+            const { name, ...userData } = user;
+            res.json(userData);
         } else {
             res.status(404).json({ error: 'User not found' });
         }
@@ -178,17 +187,22 @@ app.put('/api/users/:username', async (req, res) => {
         const { username } = req.params;
         const { tokens, amountDue } = req.body;
         
-        const data = JSON.parse(await fs.readFile(dataPath, 'utf8'));
+        const collection = db.collection('users');
+        const user = await collection.findOne({ name: username });
         
-        if (data[username]) {
-            data[username] = { 
-                ...data[username], 
-                tokens: tokens || data[username].tokens,
-                amountDue: amountDue !== undefined ? amountDue : data[username].amountDue
-            };
+        if (user) {
+            const updateData = {};
+            if (tokens !== undefined) updateData.tokens = tokens;
+            if (amountDue !== undefined) updateData.amountDue = amountDue;
             
-            await fs.writeFile(dataPath, JSON.stringify(data, null, 2));
-            res.json(data[username]);
+            await collection.updateOne(
+                { name: username },
+                { $set: updateData }
+            );
+            
+            const updatedUser = await collection.findOne({ name: username });
+            const { name, ...userData } = updatedUser;
+            res.json(userData);
         } else {
             res.status(404).json({ error: 'User not found' });
         }
@@ -207,21 +221,25 @@ app.post('/api/users', async (req, res) => {
             return res.status(400).json({ error: 'Name and user data are required' });
         }
         
-        const data = JSON.parse(await fs.readFile(dataPath, 'utf8'));
+        const collection = db.collection('users');
         
         // Check if user already exists
-        if (data[name]) {
+        const existingUser = await collection.findOne({ name });
+        if (existingUser) {
             return res.status(409).json({ error: 'User already exists' });
         }
         
         // Add new user
-        data[name] = userData;
+        const newUser = {
+            name,
+            ...userData
+        };
         
-        await fs.writeFile(dataPath, JSON.stringify(data, null, 2));
+        await collection.insertOne(newUser);
         
         res.status(201).json({
             success: true,
-            user: data[name],
+            user: userData,
             message: 'User created successfully'
         });
     } catch (error) {
@@ -235,18 +253,30 @@ app.post('/api/transactions', async (req, res) => {
     try {
         const { username, amount, tokensUsed, remainingAmount } = req.body;
         
-        const data = JSON.parse(await fs.readFile(dataPath, 'utf8'));
+        const collection = db.collection('users');
+        const user = await collection.findOne({ name: username });
         
-        if (data[username]) {
+        if (user) {
             // Update user's tokens and amount due
-            data[username].tokens = Math.max(0, data[username].tokens - tokensUsed);
-            data[username].amountDue = (data[username].amountDue || 0) + remainingAmount;
+            const newTokens = Math.max(0, user.tokens - tokensUsed);
+            const newAmountDue = (user.amountDue || 0) + remainingAmount;
             
-            await fs.writeFile(dataPath, JSON.stringify(data, null, 2));
+            await collection.updateOne(
+                { name: username },
+                { 
+                    $set: { 
+                        tokens: newTokens,
+                        amountDue: newAmountDue
+                    }
+                }
+            );
+            
+            const updatedUser = await collection.findOne({ name: username });
+            const { name, ...userData } = updatedUser;
             
             res.json({
                 success: true,
-                user: data[username],
+                user: userData,
                 transaction: {
                     amount,
                     tokensUsed,
@@ -267,15 +297,16 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         
-        // Simple authentication - you can enhance this
-        const data = JSON.parse(await fs.readFile(dataPath, 'utf8'));
+        const collection = db.collection('users');
+        const user = await collection.findOne({ name: username });
         
-        if (data[username]) {
+        if (user) {
             // For demo purposes, accept any password
             // In production, you'd verify against stored passwords
+            const { name, ...userData } = user;
             res.json({
                 success: true,
-                user: data[username],
+                user: userData,
                 userType: username === 'admin' ? 'admin' : 'user'
             });
         } else {
@@ -297,16 +328,25 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Start server
+// Connect to MongoDB and start server
 async function startServer() {
-    await ensureDataDirectory();
-    await initializeData();
-    
-    app.listen(PORT, () => {
-        console.log(`Server running on port ${PORT}`);
-        console.log(`Health check: http://localhost:${PORT}/health`);
-        console.log(`API docs: http://localhost:${PORT}/api/users`);
-    });
+    try {
+        const client = new MongoClient(MONGODB_URI);
+        await client.connect();
+        console.log('Connected to MongoDB');
+        
+        db = client.db();
+        await initializeDatabase();
+        
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+            console.log(`Health check: http://localhost:${PORT}/health`);
+            console.log(`API docs: http://localhost:${PORT}/api/users`);
+        });
+    } catch (error) {
+        console.error('Failed to connect to MongoDB:', error);
+        process.exit(1);
+    }
 }
 
 startServer().catch(console.error);
