@@ -11,6 +11,17 @@ const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ekram-credit';
 let db;
 
+// MongoDB connection options
+const mongoOptions = {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 10000,
+    socketTimeoutMS: 45000,
+    maxPoolSize: 10,
+    retryWrites: true,
+    w: 'majority'
+};
+
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
@@ -331,9 +342,18 @@ app.get('/health', (req, res) => {
 // Connect to MongoDB and start server
 async function startServer() {
     try {
-        const client = new MongoClient(MONGODB_URI);
+        console.log('Attempting to connect to MongoDB...');
+        
+        // Validate connection string
+        if (!MONGODB_URI || MONGODB_URI === 'mongodb://localhost:27017/ekram-credit') {
+            console.log('No MongoDB URI provided, using file storage...');
+            await startWithFileStorage();
+            return;
+        }
+        
+        const client = new MongoClient(MONGODB_URI, mongoOptions);
         await client.connect();
-        console.log('Connected to MongoDB');
+        console.log('Connected to MongoDB successfully');
         
         db = client.db();
         await initializeDatabase();
@@ -344,9 +364,38 @@ async function startServer() {
             console.log(`API docs: http://localhost:${PORT}/api/users`);
         });
     } catch (error) {
-        console.error('Failed to connect to MongoDB:', error);
-        process.exit(1);
+        console.error('Failed to connect to MongoDB:', error.message);
+        console.log('Falling back to file-based storage...');
+        await startWithFileStorage();
     }
+}
+
+// Fallback file storage function
+async function startWithFileStorage() {
+    const fs = require('fs').promises;
+    const dataPath = path.join(__dirname, 'data', 'users.json');
+    
+    // Ensure data directory exists
+    try {
+        await fs.mkdir(path.dirname(dataPath), { recursive: true });
+    } catch (err) {
+        console.log('Data directory already exists');
+    }
+    
+    // Initialize file storage
+    try {
+        await fs.access(dataPath);
+        console.log('Data file exists');
+    } catch (error) {
+        console.log('Creating data file with default users');
+        await fs.writeFile(dataPath, JSON.stringify(defaultUsers, null, 2));
+    }
+    
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT} (file storage mode)`);
+        console.log(`Health check: http://localhost:${PORT}/health`);
+        console.log(`API docs: http://localhost:${PORT}/api/users`);
+    });
 }
 
 startServer().catch(console.error);
