@@ -556,110 +556,113 @@ async function processTokenConversion(dollarAmount, selectedUser) {
 
 // Function to enable edit mode
 function enableEditMode() {
-    const tokenCells = document.querySelectorAll('.token-amount');
-    const amountDueCells = document.querySelectorAll('.amount-due');
-    
-    tokenCells.forEach(cell => {
+    const editableCells = document.querySelectorAll('.token-amount, .amount-due');
+    editableCells.forEach(cell => {
         cell.contentEditable = true;
-        cell.setAttribute('data-original', cell.textContent);
-        cell.addEventListener('blur', handleTokenEdit);
+        cell.style.backgroundColor = '#fff3cd';
+        cell.style.border = '2px solid #ffc107';
+        cell.addEventListener('blur', handleCellEdit);
         cell.addEventListener('keydown', handleKeyDown);
     });
     
-    amountDueCells.forEach(cell => {
-        cell.contentEditable = true;
-        cell.setAttribute('data-original', cell.textContent);
-        cell.addEventListener('blur', handleAmountDueEdit);
-        cell.addEventListener('keydown', handleKeyDown);
+    // Make all cells editable for comprehensive editing
+    const allCells = document.querySelectorAll('td');
+    allCells.forEach(cell => {
+        if (!cell.classList.contains('token-amount') && !cell.classList.contains('amount-due')) {
+            cell.contentEditable = true;
+            cell.style.backgroundColor = '#e8f4fd';
+            cell.style.border = '2px solid #007bff';
+            cell.addEventListener('blur', handleCellEdit);
+            cell.addEventListener('keydown', handleKeyDown);
+        }
     });
 }
 
 // Function to disable edit mode
 function disableEditMode() {
-    const tokenCells = document.querySelectorAll('.token-amount');
-    const amountDueCells = document.querySelectorAll('.amount-due');
-    
-    tokenCells.forEach(cell => {
+    const editableCells = document.querySelectorAll('.token-amount, .amount-due, td');
+    editableCells.forEach(cell => {
         cell.contentEditable = false;
-        cell.removeEventListener('blur', handleTokenEdit);
-        cell.removeEventListener('keydown', handleKeyDown);
-    });
-    
-    amountDueCells.forEach(cell => {
-        cell.contentEditable = false;
-        cell.removeEventListener('blur', handleAmountDueEdit);
+        cell.style.backgroundColor = '';
+        cell.style.border = '';
+        cell.removeEventListener('blur', handleCellEdit);
         cell.removeEventListener('keydown', handleKeyDown);
     });
 }
 
-// Handle token cell editing
-async function handleTokenEdit(e) {
+// Function to handle cell editing
+async function handleCellEdit(e) {
     const cell = e.target;
-    const username = cell.closest('tr').getAttribute('data-username');
-    const newValue = parseInt(cell.textContent) || 0;
+    const row = cell.closest('tr');
+    const username = row.getAttribute('data-username');
+    const cellIndex = Array.from(row.children).indexOf(cell);
     
-    try {
-        // Update via backend API
-        const response = await fetch(`/api/users/${encodeURIComponent(username)}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                tokens: Math.max(0, newValue)
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to update user data');
-        }
-        
-        // Update display
-        cell.textContent = Math.max(0, newValue);
-    } catch (error) {
-        console.error('Error updating token:', error);
-        // Revert the cell content on error
-        cell.textContent = cell.getAttribute('data-original') || '0';
+    let newValue = cell.textContent.trim();
+    let fieldName = '';
+    let updateData = {};
+    
+    // Determine which field is being edited
+    if (cell.classList.contains('token-amount')) {
+        fieldName = 'tokens';
+        newValue = parseInt(newValue) || 0;
+        updateData.tokens = newValue;
+    } else if (cell.classList.contains('amount-due')) {
+        fieldName = 'amountDue';
+        // Remove $ and convert to number
+        newValue = parseFloat(newValue.replace('$', '')) || 0;
+        updateData.amountDue = newValue;
+    } else if (cellIndex === 0) { // Name column
+        fieldName = 'name';
+        updateData.name = newValue;
+    } else if (cellIndex === 1) { // Tier column
+        fieldName = 'tier';
+        updateData.tier = newValue;
+    } else if (cellIndex === 5) { // Password column
+        fieldName = 'password';
+        updateData.password = newValue;
     }
-}
-
-// Handle amount due cell editing
-async function handleAmountDueEdit(e) {
-    const cell = e.target;
-    const username = cell.closest('tr').getAttribute('data-username');
-    const newValue = parseFloat(cell.textContent.replace('$', '')) || 0;
     
-    try {
-        // Update via backend API
-        const response = await fetch(`/api/users/${encodeURIComponent(username)}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                amountDue: Math.max(0, newValue)
-            })
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to update user data');
+    if (fieldName) {
+        try {
+            const response = await fetch(`/api/users/${username}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updateData)
+            });
+            
+            if (response.ok) {
+                // Update the display
+                if (fieldName === 'amountDue') {
+                    if (newValue > 0) {
+                        cell.textContent = `$${newValue.toFixed(2)}`;
+                        cell.classList.add('has-amount');
+                        cell.classList.remove('no-amount');
+                    } else {
+                        cell.textContent = '$0.00';
+                        cell.classList.add('no-amount');
+                        cell.classList.remove('has-amount');
+                    }
+                } else if (fieldName === 'name') {
+                    // Update the data-username attribute
+                    row.setAttribute('data-username', newValue);
+                } else if (fieldName === 'tier') {
+                    // Reapply tier styling
+                    applyTierStyling();
+                }
+                
+                console.log(`${fieldName} updated successfully`);
+            } else {
+                console.error('Failed to update field');
+                // Revert the cell content
+                loadDashboardDataFromBackend();
+            }
+        } catch (error) {
+            console.error('Error updating field:', error);
+            // Revert the cell content
+            loadDashboardDataFromBackend();
         }
-        
-        // Update display
-        if (newValue > 0) {
-            cell.textContent = `$${newValue.toFixed(2)}`;
-            cell.classList.add('has-amount');
-            cell.classList.remove('no-amount');
-        } else {
-            cell.textContent = '$0.00';
-            cell.classList.add('no-amount');
-            cell.classList.remove('has-amount');
-        }
-    } catch (error) {
-        console.error('Error updating amount due:', error);
-        // Revert the cell content on error
-        const originalValue = cell.getAttribute('data-original') || '$0.00';
-        cell.textContent = originalValue;
     }
 }
 
@@ -806,7 +809,7 @@ function applyTierStyling() {
             const tierText = tierCell.textContent.trim();
             
             // Remove existing tier classes
-            row.classList.remove('gold-tier', 'silver-tier', 'bronze-tier', 'normal-tier', 'sapphire-tier', 'obsidian-tier', 'priority', 'honors');
+            row.classList.remove('gold-tier', 'silver-tier', 'bronze-tier', 'normal-tier', 'sapphire-tier', 'obsidian-tier', 'ruby-tier', 'emerald-tier', 'platinum-tier', 'priority', 'honors');
             
             // Add base tier class
             if (tierText.includes('Gold')) {
@@ -821,6 +824,12 @@ function applyTierStyling() {
                 row.classList.add('sapphire-tier');
             } else if (tierText.includes('Obsidian')) {
                 row.classList.add('obsidian-tier');
+            } else if (tierText.includes('Ruby')) {
+                row.classList.add('ruby-tier');
+            } else if (tierText.includes('Emerald')) {
+                row.classList.add('emerald-tier');
+            } else if (tierText.includes('Platinum')) {
+                row.classList.add('platinum-tier');
             }
             
             // Add special designation classes
@@ -895,30 +904,22 @@ function goBack() {
 // Add New User Function
 async function addNewUser() {
     const name = document.getElementById('newUserName').value.trim();
-    const cardNumber = document.getElementById('newUserCardNumber').value.trim();
     const tier = document.getElementById('newUserTier').value;
     const designation = document.getElementById('newUserDesignation').value;
     const tokens = parseInt(document.getElementById('newUserTokens').value);
+    const customPassword = document.getElementById('newUserPassword').value.trim();
 
-    if (!name || !cardNumber || !tier) {
+    if (!name || !tier) {
         alert('Please fill in all required fields.');
         return;
     }
 
-    // Generate a random security code
-    const securityCode = Math.floor(100 + Math.random() * 900).toString();
-    
-    // Generate a random password (8 characters: letters, numbers, symbols)
-    const password = generateRandomPassword();
-
     // Create the new user object
     const newUser = {
         tier: designation ? `${tier} ${designation}` : tier,
-        tokens: tokens,
-        cardNumber: cardNumber,
-        securityCode: securityCode,
+        tokens: tokens || 1000,
         amountDue: 0,
-        password: password
+        password: customPassword || generateRandomPassword()
     };
 
     try {
@@ -935,15 +936,22 @@ async function addNewUser() {
         });
 
         if (response.ok) {
+            const result = await response.json();
+            
             // Close modal and refresh dashboard
             closeAddUserModal();
             loadDashboardDataFromBackend();
             
             // Show success message with login credentials
-            const successMessage = `User added successfully!\n\nLogin Credentials:\nUsername: ${name}\nPassword: ${password}\n\nPlease save these credentials!`;
+            const password = customPassword || result.user.password;
+            const cardNumber = result.user.cardNumber;
+            const securityCode = result.user.securityCode;
+            
+            const successMessage = `User added successfully!\n\nLogin Credentials:\nUsername: ${name}\nPassword: ${password}\nCard Number: ${cardNumber}\nSecurity Code: ${securityCode}\n\nPlease save these credentials!`;
             alert(successMessage);
         } else {
-            alert('Error adding user. Please try again.');
+            const errorData = await response.json();
+            alert(`Error adding user: ${errorData.error || 'Please try again.'}`);
         }
     } catch (error) {
         console.error('Error adding user:', error);

@@ -119,6 +119,50 @@ const defaultUsers = {
     }
 };
 
+// Generate unique random card number
+async function generateUniqueCardNumber() {
+    let cardNumber;
+    let isUnique = false;
+    
+    while (!isUnique) {
+        // Generate 4 groups of 4 digits
+        const group1 = Math.floor(Math.random() * 9000) + 1000;
+        const group2 = Math.floor(Math.random() * 9000) + 1000;
+        const group3 = Math.floor(Math.random() * 9000) + 1000;
+        const group4 = Math.floor(Math.random() * 9000) + 1000;
+        
+        cardNumber = `${group1}-${group2}-${group3}-${group4}`;
+        
+        // Check if this card number already exists
+        const { data: existingCard, error } = await supabase
+            .from('users')
+            .select('cardNumber')
+            .eq('cardNumber', cardNumber)
+            .single();
+        
+        if (error || !existingCard) {
+            isUnique = true;
+        }
+    }
+    
+    return cardNumber;
+}
+
+// Generate random security code
+function generateSecurityCode() {
+    return Math.floor(Math.random() * 900) + 100; // 3-digit code
+}
+
+// Generate random password
+function generateRandomPassword() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+}
+
 // Initialize database with default users
 async function initializeDatabase() {
     try {
@@ -236,11 +280,14 @@ app.get('/api/users/:username', async (req, res) => {
 app.put('/api/users/:username', async (req, res) => {
     try {
         const { username } = req.params;
-        const { tokens, amountDue } = req.body;
+        const { tokens, amountDue, tier, password, name } = req.body;
 
         const updateData = {};
         if (tokens !== undefined) updateData.tokens = tokens;
         if (amountDue !== undefined) updateData.amountDue = amountDue;
+        if (tier !== undefined) updateData.tier = tier;
+        if (password !== undefined) updateData.password = password;
+        if (name !== undefined) updateData.name = name;
 
         const { data: updatedUser, error } = await supabase
             .from('users')
@@ -253,7 +300,7 @@ app.put('/api/users/:username', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
-        const { name, ...userData } = updatedUser;
+        const { name: userName, ...userData } = updatedUser;
         res.json(userData);
     } catch (error) {
         console.error('Error updating user:', error);
@@ -281,10 +328,19 @@ app.post('/api/users', async (req, res) => {
             return res.status(409).json({ error: 'User already exists' });
         }
 
-        // Add new user
+        // Generate unique card number and security code
+        const cardNumber = await generateUniqueCardNumber();
+        const securityCode = generateSecurityCode().toString();
+
+        // Add new user with generated card number and custom password
         const newUser = {
             name,
-            ...userData
+            tier: userData.tier || 'Normal',
+            tokens: userData.tokens || 1000,
+            cardNumber,
+            securityCode,
+            amountDue: userData.amountDue || 0,
+            password: userData.password || generateRandomPassword()
         };
 
         const { data: insertedUser, error: insertError } = await supabase
@@ -300,7 +356,11 @@ app.post('/api/users', async (req, res) => {
 
         res.status(201).json({
             success: true,
-            user: userData,
+            user: {
+                ...newUser,
+                cardNumber,
+                securityCode
+            },
             message: 'User created successfully'
         });
     } catch (error) {
@@ -377,8 +437,11 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
-        // For demo purposes, accept any password
-        // In production, you'd verify against stored passwords
+        // Verify password
+        if (user.password !== password) {
+            return res.status(401).json({ error: 'Invalid credentials' });
+        }
+
         const { name, ...userData } = user;
         res.json({
             success: true,
