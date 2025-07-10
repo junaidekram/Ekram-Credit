@@ -1,27 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
-const { MongoClient } = require('mongodb');
+const { createClient } = require('@supabase/supabase-js');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// MongoDB connection
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/ekram-credit';
-let db;
-
-// MongoDB connection options
-const mongoOptions = {
-    serverSelectionTimeoutMS: 10000,
-    socketTimeoutMS: 45000,
-    maxPoolSize: 10,
-    retryWrites: true,
-    w: 'majority',
-    tls: true,
-    tlsAllowInvalidCertificates: true,
-    tlsAllowInvalidHostnames: true
-};
+// Supabase configuration
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+let supabase;
 
 // Middleware
 app.use(cors());
@@ -133,17 +122,58 @@ const defaultUsers = {
 // Initialize database with default users
 async function initializeDatabase() {
     try {
-        const collection = db.collection('users');
-        const count = await collection.countDocuments();
-        
-        if (count === 0) {
-            console.log('Initializing database with default users');
+        // Check if users table exists and has data
+        const { data: existingUsers, error: checkError } = await supabase
+            .from('users')
+            .select('name')
+            .limit(1);
+
+        if (checkError) {
+            console.log('Creating users table...');
+            // Create the users table
+            const { error: createError } = await supabase.rpc('create_users_table');
+            if (createError) {
+                console.log('Table creation failed, using SQL...');
+                // Fallback: create table manually
+                await supabase.rpc('exec_sql', {
+                    sql: `
+                        CREATE TABLE IF NOT EXISTS users (
+                            id SERIAL PRIMARY KEY,
+                            name TEXT UNIQUE NOT NULL,
+                            tier TEXT,
+                            tokens INTEGER DEFAULT 0,
+                            cardNumber TEXT,
+                            securityCode TEXT,
+                            amountDue INTEGER DEFAULT 0,
+                            password TEXT,
+                            created_at TIMESTAMP DEFAULT NOW()
+                        );
+                    `
+                });
+            }
+        }
+
+        // Check if we need to insert default users
+        const { data: userCount, error: countError } = await supabase
+            .from('users')
+            .select('name', { count: 'exact' });
+
+        if (!countError && userCount.length === 0) {
+            console.log('Inserting default users...');
             const usersArray = Object.entries(defaultUsers).map(([name, data]) => ({
                 name,
                 ...data
             }));
-            await collection.insertMany(usersArray);
-            console.log('Default users added to database');
+
+            const { error: insertError } = await supabase
+                .from('users')
+                .insert(usersArray);
+
+            if (insertError) {
+                console.error('Error inserting default users:', insertError);
+            } else {
+                console.log('Default users inserted successfully');
+            }
         } else {
             console.log('Database already has users');
         }
@@ -157,16 +187,22 @@ async function initializeDatabase() {
 // GET all users
 app.get('/api/users', async (req, res) => {
     try {
-        const collection = db.collection('users');
-        const users = await collection.find({}).toArray();
-        
-        // Convert back to the expected format
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('*');
+
+        if (error) {
+            console.error('Error fetching users:', error);
+            return res.status(500).json({ error: 'Failed to load users' });
+        }
+
+        // Convert to expected format
         const usersObject = {};
         users.forEach(user => {
             const { name, ...userData } = user;
             usersObject[name] = userData;
         });
-        
+
         res.json(usersObject);
     } catch (error) {
         console.error('Error reading users:', error);
@@ -178,15 +214,18 @@ app.get('/api/users', async (req, res) => {
 app.get('/api/users/:username', async (req, res) => {
     try {
         const { username } = req.params;
-        const collection = db.collection('users');
-        const user = await collection.findOne({ name: username });
-        
-        if (user) {
-            const { name, ...userData } = user;
-            res.json(userData);
-        } else {
-            res.status(404).json({ error: 'User not found' });
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('name', username)
+            .single();
+
+        if (error || !user) {
+            return res.status(404).json({ error: 'User not found' });
         }
+
+        const { name, ...userData } = user;
+        res.json(userData);
     } catch (error) {
         console.error('Error reading user:', error);
         res.status(500).json({ error: 'Failed to load user' });
@@ -198,26 +237,24 @@ app.put('/api/users/:username', async (req, res) => {
     try {
         const { username } = req.params;
         const { tokens, amountDue } = req.body;
-        
-        const collection = db.collection('users');
-        const user = await collection.findOne({ name: username });
-        
-        if (user) {
-            const updateData = {};
-            if (tokens !== undefined) updateData.tokens = tokens;
-            if (amountDue !== undefined) updateData.amountDue = amountDue;
-            
-            await collection.updateOne(
-                { name: username },
-                { $set: updateData }
-            );
-            
-            const updatedUser = await collection.findOne({ name: username });
-            const { name, ...userData } = updatedUser;
-            res.json(userData);
-        } else {
-            res.status(404).json({ error: 'User not found' });
+
+        const updateData = {};
+        if (tokens !== undefined) updateData.tokens = tokens;
+        if (amountDue !== undefined) updateData.amountDue = amountDue;
+
+        const { data: updatedUser, error } = await supabase
+            .from('users')
+            .update(updateData)
+            .eq('name', username)
+            .select()
+            .single();
+
+        if (error || !updatedUser) {
+            return res.status(404).json({ error: 'User not found' });
         }
+
+        const { name, ...userData } = updatedUser;
+        res.json(userData);
     } catch (error) {
         console.error('Error updating user:', error);
         res.status(500).json({ error: 'Failed to update user' });
@@ -228,27 +265,39 @@ app.put('/api/users/:username', async (req, res) => {
 app.post('/api/users', async (req, res) => {
     try {
         const { name, userData } = req.body;
-        
+
         if (!name || !userData) {
             return res.status(400).json({ error: 'Name and user data are required' });
         }
-        
-        const collection = db.collection('users');
-        
+
         // Check if user already exists
-        const existingUser = await collection.findOne({ name });
+        const { data: existingUser, error: checkError } = await supabase
+            .from('users')
+            .select('name')
+            .eq('name', name)
+            .single();
+
         if (existingUser) {
             return res.status(409).json({ error: 'User already exists' });
         }
-        
+
         // Add new user
         const newUser = {
             name,
             ...userData
         };
-        
-        await collection.insertOne(newUser);
-        
+
+        const { data: insertedUser, error: insertError } = await supabase
+            .from('users')
+            .insert(newUser)
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error('Error creating user:', insertError);
+            return res.status(500).json({ error: 'Failed to create user' });
+        }
+
         res.status(201).json({
             success: true,
             user: userData,
@@ -264,40 +313,49 @@ app.post('/api/users', async (req, res) => {
 app.post('/api/transactions', async (req, res) => {
     try {
         const { username, amount, tokensUsed, remainingAmount } = req.body;
-        
-        const collection = db.collection('users');
-        const user = await collection.findOne({ name: username });
-        
-        if (user) {
-            // Update user's tokens and amount due
-            const newTokens = Math.max(0, user.tokens - tokensUsed);
-            const newAmountDue = (user.amountDue || 0) + remainingAmount;
-            
-            await collection.updateOne(
-                { name: username },
-                { 
-                    $set: { 
-                        tokens: newTokens,
-                        amountDue: newAmountDue
-                    }
-                }
-            );
-            
-            const updatedUser = await collection.findOne({ name: username });
-            const { name, ...userData } = updatedUser;
-            
-            res.json({
-                success: true,
-                user: userData,
-                transaction: {
-                    amount,
-                    tokensUsed,
-                    remainingAmount
-                }
-            });
-        } else {
-            res.status(404).json({ error: 'User not found' });
+
+        // Get current user data
+        const { data: user, error: fetchError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('name', username)
+            .single();
+
+        if (fetchError || !user) {
+            return res.status(404).json({ error: 'User not found' });
         }
+
+        // Calculate new values
+        const newTokens = Math.max(0, user.tokens - tokensUsed);
+        const newAmountDue = (user.amountDue || 0) + remainingAmount;
+
+        // Update user
+        const { data: updatedUser, error: updateError } = await supabase
+            .from('users')
+            .update({
+                tokens: newTokens,
+                amountDue: newAmountDue
+            })
+            .eq('name', username)
+            .select()
+            .single();
+
+        if (updateError) {
+            console.error('Error updating user:', updateError);
+            return res.status(500).json({ error: 'Failed to process transaction' });
+        }
+
+        const { name, ...userData } = updatedUser;
+
+        res.json({
+            success: true,
+            user: userData,
+            transaction: {
+                amount,
+                tokensUsed,
+                remainingAmount
+            }
+        });
     } catch (error) {
         console.error('Error processing transaction:', error);
         res.status(500).json({ error: 'Failed to process transaction' });
@@ -308,22 +366,25 @@ app.post('/api/transactions', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        
-        const collection = db.collection('users');
-        const user = await collection.findOne({ name: username });
-        
-        if (user) {
-            // For demo purposes, accept any password
-            // In production, you'd verify against stored passwords
-            const { name, ...userData } = user;
-            res.json({
-                success: true,
-                user: userData,
-                userType: username === 'admin' ? 'admin' : 'user'
-            });
-        } else {
-            res.status(401).json({ error: 'Invalid credentials' });
+
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('name', username)
+            .single();
+
+        if (error || !user) {
+            return res.status(401).json({ error: 'Invalid credentials' });
         }
+
+        // For demo purposes, accept any password
+        // In production, you'd verify against stored passwords
+        const { name, ...userData } = user;
+        res.json({
+            success: true,
+            user: userData,
+            userType: username === 'admin' ? 'admin' : 'user'
+        });
     } catch (error) {
         console.error('Error during login:', error);
         res.status(500).json({ error: 'Login failed' });
@@ -340,60 +401,39 @@ app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Connect to MongoDB and start server
+// Initialize Supabase and start server
 async function startServer() {
     try {
-        console.log('Attempting to connect to MongoDB...');
-        
-        // Validate connection string
-        if (!MONGODB_URI || MONGODB_URI === 'mongodb://localhost:27017/ekram-credit') {
-            console.log('No MongoDB URI provided, using file storage...');
+        console.log('Initializing Supabase connection...');
+
+        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+            console.log('Supabase credentials not provided, using file storage...');
             await startWithFileStorage();
             return;
         }
-        
-        // Try different connection approaches
-        let client;
-        
-        // First attempt: with TLS options
-        try {
-            client = new MongoClient(MONGODB_URI, mongoOptions);
-            await client.connect();
-            console.log('Connected to MongoDB successfully with TLS options');
-        } catch (error) {
-            console.log('First connection attempt failed, trying without TLS options...');
-            
-            // Second attempt: without TLS options
-            try {
-                client = new MongoClient(MONGODB_URI, {
-                    serverSelectionTimeoutMS: 10000,
-                    socketTimeoutMS: 45000,
-                    maxPoolSize: 10,
-                    retryWrites: true,
-                    w: 'majority'
-                });
-                await client.connect();
-                console.log('Connected to MongoDB successfully without TLS options');
-            } catch (secondError) {
-                console.log('Second connection attempt failed, trying minimal options...');
-                
-                // Third attempt: minimal options
-                client = new MongoClient(MONGODB_URI);
-                await client.connect();
-                console.log('Connected to MongoDB successfully with minimal options');
-            }
+
+        // Initialize Supabase client
+        supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log('Supabase client initialized');
+
+        // Test connection
+        const { data, error } = await supabase.from('users').select('count').limit(1);
+        if (error) {
+            console.log('Supabase connection test failed, using file storage...');
+            await startWithFileStorage();
+            return;
         }
-        
-        db = client.db();
+
+        console.log('Connected to Supabase successfully');
         await initializeDatabase();
-        
+
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
             console.log(`Health check: http://localhost:${PORT}/health`);
             console.log(`API docs: http://localhost:${PORT}/api/users`);
         });
     } catch (error) {
-        console.error('All MongoDB connection attempts failed:', error.message);
+        console.error('Failed to initialize Supabase:', error.message);
         console.log('Falling back to file-based storage...');
         await startWithFileStorage();
     }
@@ -403,14 +443,14 @@ async function startServer() {
 async function startWithFileStorage() {
     const fs = require('fs').promises;
     const dataPath = path.join(__dirname, 'data', 'users.json');
-    
+
     // Ensure data directory exists
     try {
         await fs.mkdir(path.dirname(dataPath), { recursive: true });
     } catch (err) {
         console.log('Data directory already exists');
     }
-    
+
     // Initialize file storage
     try {
         await fs.access(dataPath);
@@ -419,7 +459,7 @@ async function startWithFileStorage() {
         console.log('Creating data file with default users');
         await fs.writeFile(dataPath, JSON.stringify(defaultUsers, null, 2));
     }
-    
+
     app.listen(PORT, () => {
         console.log(`Server running on port ${PORT} (file storage mode)`);
         console.log(`Health check: http://localhost:${PORT}/health`);

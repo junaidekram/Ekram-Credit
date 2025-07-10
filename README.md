@@ -10,13 +10,13 @@ A comprehensive credit management web application with user authentication, toke
 - **Transaction Flow**: Multi-step credit card processing simulation
 - **Tier-based System**: Gold, Silver, Bronze tiers with Priority and Honors designations
 - **Responsive Design**: Works on desktop and mobile devices
-- **Persistent Data**: MongoDB Atlas cloud database for data persistence
+- **Persistent Data**: Supabase PostgreSQL database for data persistence
 
 ## Tech Stack
 
 - **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
 - **Backend**: Node.js, Express.js
-- **Database**: MongoDB Atlas (cloud database)
+- **Database**: Supabase (PostgreSQL cloud database)
 - **Deployment**: Render (free tier)
 
 ## Local Development
@@ -24,24 +24,36 @@ A comprehensive credit management web application with user authentication, toke
 ### Prerequisites
 - Node.js (version 14 or higher)
 - npm or yarn
-- MongoDB Atlas account (free)
+- Supabase account (free)
 
-### MongoDB Atlas Setup
+### Supabase Setup
 
-1. **Create MongoDB Atlas Account**
-   - Go to [mongodb.com/atlas](https://mongodb.com/atlas)
+1. **Create Supabase Account**
+   - Go to [supabase.com](https://supabase.com)
    - Sign up for a free account
-   - Create a new cluster (free tier)
+   - Create a new project
 
-2. **Set Up Database**
-   - Click "Connect" on your cluster
-   - Choose "Connect your application"
-   - Copy the connection string
-   - Replace `<password>` with your database password
-   - Replace `<dbname>` with `ekram-credit`
+2. **Get Your Credentials**
+   - Go to Settings → API
+   - Copy the **Project URL** and **anon public key**
+   - These will be your environment variables
 
-3. **Get Your Connection String**
-   - It should look like: `mongodb+srv://username:password@cluster.mongodb.net/ekram-credit?retryWrites=true&w=majority`
+3. **Create Database Table**
+   - Go to SQL Editor in Supabase
+   - Run this SQL to create the users table:
+   ```sql
+   CREATE TABLE IF NOT EXISTS users (
+       id SERIAL PRIMARY KEY,
+       name TEXT UNIQUE NOT NULL,
+       tier TEXT,
+       tokens INTEGER DEFAULT 0,
+       cardNumber TEXT,
+       securityCode TEXT,
+       amountDue INTEGER DEFAULT 0,
+       password TEXT,
+       created_at TIMESTAMP DEFAULT NOW()
+   );
+   ```
 
 ### Installation
 
@@ -58,9 +70,10 @@ A comprehensive credit management web application with user authentication, toke
 
 3. **Set up environment variables**
    - Create a `.env` file in the root directory
-   - Add your MongoDB connection string:
+   - Add your Supabase credentials:
    ```
-   MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ekram-credit?retryWrites=true&w=majority
+   SUPABASE_URL=your_supabase_project_url
+   SUPABASE_ANON_KEY=your_supabase_anon_key
    ```
 
 4. **Start the development server**
@@ -111,9 +124,11 @@ Ensure your GitHub repository contains:
 
 6. **Set Environment Variables**
    - Go to the "Environment" tab
-   - Add your MongoDB connection string:
-     - **Key**: `MONGODB_URI`
-     - **Value**: Your MongoDB Atlas connection string
+   - Add your Supabase credentials:
+     - **Key**: `SUPABASE_URL`
+     - **Value**: Your Supabase project URL
+     - **Key**: `SUPABASE_ANON_KEY`
+     - **Value**: Your Supabase anon public key
 
 7. **Deploy**
    - Click "Create Web Service"
@@ -166,11 +181,13 @@ Ekram-Credit/
 
 ## Data Persistence
 
-The application now uses MongoDB Atlas for persistent data storage. This means:
+The application now uses Supabase PostgreSQL for persistent data storage. This means:
 - Data survives server restarts
 - Data persists through Render's sleep/wake cycles
 - No data loss when the server goes inactive
 - Real-time synchronization across all users
+- No SSL connection issues
+- Reliable PostgreSQL database
 
 ## Support
 
