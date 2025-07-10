@@ -1,4 +1,23 @@
+// Function to load and display version
+async function loadVersion() {
+    try {
+        const response = await fetch('/version.json');
+        if (response.ok) {
+            const versionData = await response.json();
+            const versionElement = document.getElementById('versionNumber');
+            if (versionElement) {
+                versionElement.textContent = versionData.version;
+            }
+        }
+    } catch (error) {
+        console.log('Version file not found, using default version');
+    }
+}
+
+// Load version when page loads
 document.addEventListener('DOMContentLoaded', function() {
+    loadVersion();
+    
     // Check if we're on the login page, dashboard, or amount page
     const loginForm = document.getElementById('loginForm');
     const logoutBtn = document.getElementById('logoutBtn');
